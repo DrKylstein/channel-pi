@@ -1,0 +1,69 @@
+break_music:
+  using "Music Videos"
+  play 2
+break_cgi:
+  using CGI
+  play 1
+break_educational:
+  using "Educational Shorts"
+  play 1
+break:
+  using Ads
+  shuffle
+  play 4
+  oneof break_music break_cgi break_educational
+  file ident.mp4
+shows_block:
+  using Shows
+  pick
+  play 1
+  break
+  pick
+  play 1
+  break
+mst3k_block:
+  using MST3K;play 1
+  break
+  using "Rifftrax Shorts";play 1
+  using "Rifftrax Features";play 1
+  break
+movies_block:
+  using Movies
+  pick
+  play 1
+  break
+  play 1
+  break
+cartoon_shorts:
+  using "Cartoon Shorts"
+  pick
+  play 2
+cartoon_show:
+  using "Cartoon Shows"
+  pick
+  play 1
+cartoon_block:
+  oneof cartoon_shorts cartoon_show
+  break
+  oneof cartoon_shorts cartoon_show
+  break
+  oneof cartoon_shorts cartoon_show
+  break
+graveyard_block:
+  using Documentaries;play 1
+  using Infomercials;play 1
+adult_swim_block:
+  using "Anime and Adult Animation"
+  pick
+  play 1
+  break
+  pick
+  play 1
+  break
+file ident.mp4
+cartoon_block
+mst3k_block
+shows_block
+movies_block
+adult_swim_block
+graveyard_block
