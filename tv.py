@@ -8,7 +8,6 @@ import argparse
 import time
 import shlex
 import csv
-import hashlib
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--program','-i', default='./program.tv')
@@ -26,10 +25,11 @@ logo_path='./ident_overlay.png'
 seed_mutator = ''
 
 def set_fixed_seed(seed):
-    if seed is None:
-        random.seed()
-        return
-    random.seed(seed+seed_mutator, 2)
+    #if seed is None:
+    #    random.seed()
+    #    return
+    #random.seed(seed+seed_mutator, 2)
+    pass
 
 times_db = {}
 
@@ -192,10 +192,10 @@ if not args.no_wait:
         off_air()
 #main loop
 while True:
-    random.seed(1)
-    days = (int(time.time()) // 60*60*24) - 38835884153
-    for i in range(days):
-        playlist = build_playlist()
+    # random.seed(1)
+    # days = (int(time.time()) // 60*60*24) - 38835884153
+    # for i in range(days):
+    playlist = build_playlist()
 
     current_time = time.time()
     current_struct = time.localtime(current_time)
