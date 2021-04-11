@@ -22,12 +22,9 @@ program_path = args.program
 bg_path = './bg'
 logo_path='./ident_overlay.png'
 
-seed_mutator = ''
+seed_mutator = ':0001'
 
 def set_fixed_seed(seed):
-    if seed is None:
-        random.seed()
-        return
     random.seed(seed+seed_mutator, 2)
 
 def in_dir(prefix,f):
@@ -57,7 +54,6 @@ class Pool:
     def __init__(self,l,seed=None):
 
         self._sequential = False
-        self._index = 0
         self._videos = l.copy()
 
         for item in self._videos:
@@ -66,11 +62,12 @@ class Pool:
                 self._videos.remove(item)
                 break
 
+        self._index = int(time.time() // 60*60*24) % len(self._videos)
+
         if self._sequential:
             self._videos.sort()
-            self._index = int(time.time() // 60*60*24) % len(self._videos)#random.randrange(len(self._videos))
         else:
-            #set_fixed_seed(seed)
+            set_fixed_seed(seed)
             random.shuffle(self._videos)
 
     def pick(self):
@@ -219,8 +216,18 @@ while True:
             '--audio-filter', 'normvol',
             '--norm-max-level','10',
             '--audio-filter', 'compressor',
+            '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}',
+            playlist[start_index]
+        ])
+        subprocess.run([
+            'cvlc',
+            '--play-and-exit',
+            '--no-video-title-show',
+            '--audio-filter', 'normvol',
+            '--norm-max-level','10',
+            '--audio-filter', 'compressor',
             '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}'
-        ]+playlist[start_index:])
+        ]+playlist[start_index+1:])
 
     bg_index = 0
     while time.localtime().tm_hour != 11:
