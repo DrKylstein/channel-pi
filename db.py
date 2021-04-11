@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--path','-p', default='./Videos')
 args = parser.parse_args()
 
-with open(os.path.join(args.path,'tv.csv'), mode='w', newline='') as csvfile:
+with open(os.path.join(args.path,'times.csv'), mode='w', newline='') as csvfile:
   csvwriter = csv.writer(csvfile)
   csvwriter.writerow(['file','duration'])
   for root, dirs, files in os.walk(args.path):
@@ -26,4 +26,4 @@ with open(os.path.join(args.path,'tv.csv'), mode='w', newline='') as csvfile:
           if track.duration is not None:
             duration = track.duration
             break
-        csvwriter.writerow([os.path.relpath(os.path.join(root,file),args.path),round(duration / (60*1000),2)])
+        csvwriter.writerow([os.path.relpath(os.path.join(root,file),args.path),int(duration / 1000)])

@@ -12,7 +12,7 @@ break:
   shuffle
   play 4
   oneof break_music break_cgi break_educational
-  file ident.mp4
+  file Bumpers/ident.mp4
 shows_block:
   using Shows
   pick
@@ -60,7 +60,7 @@ adult_swim_block:
   pick
   play 1
   break
-file ident.mp4
+file Bumpers/ident.mp4
 cartoon_block
 mst3k_block
 shows_block

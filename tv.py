@@ -7,11 +7,15 @@ import random
 import argparse
 import time
 import shlex
+import csv
+import hashlib
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--program','-i', default='./program.tv')
 parser.add_argument('--sources','-s', default='./Videos')
+parser.add_argument('--times','-t', default='./Videos/times.csv')
 parser.add_argument('--dry-run','-N', action='store_true')
+parser.add_argument('--no-wait', action='store_true')
 args = parser.parse_args()
 
 videos_path = args.sources
@@ -19,16 +23,33 @@ program_path = args.program
 bg_path = './bg'
 logo_path='./ident_overlay.png'
 
+seed_mutator = ''
+
+def set_fixed_seed(seed):
+    if seed is None:
+        random.seed()
+        return
+    random.seed(seed+seed_mutator, 2)
+
+times_db = {}
+
+with open(args.times,newline='') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        times_db[os.path.join(videos_path,row['file'])] = int(row['duration'])
+
 def in_dir(prefix,f):
     return os.path.dirname(f) == prefix
 
 class MetaPool:
-    def __init__(self,l):
+    def __init__(self,l,seed):
         prefixes = list(set(map(lambda f: f.rsplit('/',1)[0],l)))
         self._children = []
         for prefix in prefixes:
-            self._children.append(Pool(list(filter(lambda f: in_dir(prefix,f),l))))
+            self._children.append(Pool(list(filter(lambda f: in_dir(prefix,f),l)),seed=prefix))
         self._index = 0
+        set_fixed_seed(seed)
+        random.shuffle(self._children)
 
     def pick(self):
         self._index = (self._index + 1) % len(self._children)
@@ -43,7 +64,7 @@ class MetaPool:
         return self._children[self._index].grab()
 
 class Pool:
-    def __init__(self,l):
+    def __init__(self,l,seed=None):
 
         self._sequential = False
         self._index = 0
@@ -55,6 +76,7 @@ class Pool:
                 self._videos.remove(item)
                 break
 
+        set_fixed_seed(seed)
         if self._sequential:
             self._videos.sort()
             self._index = random.randrange(len(self._videos))
@@ -89,10 +111,11 @@ for root, dirs, files in os.walk(videos_path):
     if root == videos_path:
         pool_keys = dirs
     for file in files:
-        videos.append(os.path.join(root,file))
+        if file.endswith('.mp4') or file.endswith('.mkv') or file.endswith('.avi') or file.endswith('.sequential'):
+            videos.append(os.path.join(root,file))
 
 for k in pool_keys:
-    pools[k] = MetaPool(list(filter(lambda f: '/{}/'.format(k) in f, videos)))
+    pools[k] = MetaPool(list(filter(lambda f: '/{}/'.format(k) in f, videos)),k)
 
 #print(pools)
 
@@ -105,7 +128,7 @@ def primitive(tokens,playlist):
     global current_pool
     command, *args = tokens
     if command == 'using':
-        current_pool = random.choice(args)
+        current_pool = args[0]
     elif command == 'play':
         for i in range(int(args[0])):
             playlist.append(pools[current_pool].grab())
@@ -114,7 +137,7 @@ def primitive(tokens,playlist):
     elif command == 'pick':
         pools[current_pool].pick()
     elif command == 'file':
-        playlist.append(args[0])
+        playlist.append(os.path.join(videos_path,args[0]))
     elif command == 'oneof':
         primitive([random.choice(args)],playlist)
     else:
@@ -147,29 +170,68 @@ def build_playlist():
         primitive(item,playlist)
     return playlist
 
+def off_air():
+    subprocess.run([
+        'cvlc',
+        '--play-and-exit',
+        '--no-video-title-show',
+        '--sub-source=marq{marquee=%I:%M%p,size=32,color=0x3ea99b,position=8,x=20,y=20}:logo{file=ident_overlay.png,position=0}'
+        '--image-duration=60',
+        bg_pool.grab()
+    ])
+
 if args.dry_run:
     playlist = build_playlist()
     for item in playlist:
         print(item)
     exit()
 
+#wait for NTP sync
+if not args.no_wait:
+    for i in range(2):
+        off_air()
+#main loop
 while True:
-    while time.localtime().tm_hour < 11:
+    random.seed(1)
+    days = (int(time.time()) // 60*60*24) - 38835884153
+    for i in range(days):
+        playlist = build_playlist()
+
+    current_time = time.time()
+    current_struct = time.localtime(current_time)
+    objective_time = time.mktime((
+        current_struct.tm_year,
+        current_struct.tm_mon,
+        current_struct.tm_mday,
+        11,0,0,
+        current_struct.tm_wday,
+        current_struct.tm_yday,
+        current_struct.tm_isdst
+    ))
+    fast_forward = current_time - objective_time
+
+    whole_time = 0
+    start_index = 0
+    start_time = 0
+    if fast_forward >= 0:
+        for item in playlist:
+            duration = times_db[item]
+            if whole_time + duration > fast_forward:
+                break
+            whole_time += duration
+            start_index += 1
+        start_time = fast_forward - whole_time
+
         subprocess.run([
             'cvlc',
             '--play-and-exit',
+            '--start-time',str(start_time),
             '--no-video-title-show',
-            '--sub-source=marq{marquee=%I:%M%p,size=32,color=0x3ea99b,position=8,x=20,y=20}:logo{file=ident_overlay.png,position=0}'
-            '--image-duration=180',
-            bg_pool.grab()
-        ])
-    playlist = build_playlist()
-    subprocess.run([
-        'cvlc',
-        '--play-and-exit',
-        '--no-video-title-show',
-        '--audio-filter', 'normvol',
-        '--norm-max-level','10',
-        '--audio-filter', 'compressor',
-        '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}'
-    ]+playlist)
+            '--audio-filter', 'normvol',
+            '--norm-max-level','10',
+            '--audio-filter', 'compressor',
+            '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}'
+        ]+playlist[start_index:])
+
+    while time.localtime().tm_hour != 11:
+        off_air()
