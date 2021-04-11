@@ -25,18 +25,10 @@ logo_path='./ident_overlay.png'
 seed_mutator = ''
 
 def set_fixed_seed(seed):
-    #if seed is None:
-    #    random.seed()
-    #    return
-    #random.seed(seed+seed_mutator, 2)
-    pass
-
-times_db = {}
-
-with open(args.times,newline='') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        times_db[os.path.join(videos_path,row['file'])] = int(row['duration'])
+    if seed is None:
+        random.seed()
+        return
+    random.seed(seed+seed_mutator, 2)
 
 def in_dir(prefix,f):
     return os.path.dirname(f) == prefix
@@ -48,8 +40,6 @@ class MetaPool:
         for prefix in prefixes:
             self._children.append(Pool(list(filter(lambda f: in_dir(prefix,f),l)),seed=prefix))
         self._index = 0
-        set_fixed_seed(seed)
-        random.shuffle(self._children)
 
     def pick(self):
         self._index = (self._index + 1) % len(self._children)
@@ -76,11 +66,11 @@ class Pool:
                 self._videos.remove(item)
                 break
 
-        set_fixed_seed(seed)
         if self._sequential:
             self._videos.sort()
-            self._index = random.randrange(len(self._videos))
+            self._index = int(time.time() // 60*60*24) % len(self._videos)#random.randrange(len(self._videos))
         else:
+            #set_fixed_seed(seed)
             random.shuffle(self._videos)
 
     def pick(self):
@@ -97,15 +87,33 @@ class Pool:
             if time.localtime().tm_mon == 12 or '(xmas)' not in item:
                 return item
 
+
+bg_pool = list(map(lambda a: os.path.join(bg_path,a),os.listdir(bg_path)))
+random.shuffle(bg_pool)
+def off_air(i):
+    subprocess.run([
+        'cvlc',
+        '--play-and-exit',
+        '--no-video-title-show',
+        '--sub-source=marq{marquee=%I:%M%p,size=32,color=0x3ea99b,position=8,x=20,y=20}:logo{file=ident_overlay.png,position=0}'
+        '--image-duration=60',
+        bg_pool[i]
+    ])
+#wait for NTP sync
+if not args.no_wait:
+    for i in range(2):
+        off_air(i)
+
+
+times_db = {}
 videos = []
 pools = {}
 pool_keys = None
 
-bg_pool = Pool(list(map(lambda a: os.path.join(bg_path,a),os.listdir(bg_path))))
-bg_pool.shuffle()
-
-def get_ident():
-    return ['"'+bg_pool.grab()+'" :sub-source=logo{file=ident_overlay.png,position=0}']
+with open(args.times,newline='') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        times_db[os.path.join(videos_path,row['file'])] = int(row['duration'])
 
 for root, dirs, files in os.walk(videos_path):
     if root == videos_path:
@@ -116,8 +124,6 @@ for root, dirs, files in os.walk(videos_path):
 
 for k in pool_keys:
     pools[k] = MetaPool(list(filter(lambda f: '/{}/'.format(k) in f, videos)),k)
-
-#print(pools)
 
 current_pool = None
 pool_stack = []
@@ -170,31 +176,14 @@ def build_playlist():
         primitive(item,playlist)
     return playlist
 
-def off_air():
-    subprocess.run([
-        'cvlc',
-        '--play-and-exit',
-        '--no-video-title-show',
-        '--sub-source=marq{marquee=%I:%M%p,size=32,color=0x3ea99b,position=8,x=20,y=20}:logo{file=ident_overlay.png,position=0}'
-        '--image-duration=60',
-        bg_pool.grab()
-    ])
-
 if args.dry_run:
     playlist = build_playlist()
     for item in playlist:
         print(item)
     exit()
 
-#wait for NTP sync
-if not args.no_wait:
-    for i in range(2):
-        off_air()
 #main loop
 while True:
-    # random.seed(1)
-    # days = (int(time.time()) // 60*60*24) - 38835884153
-    # for i in range(days):
     playlist = build_playlist()
 
     current_time = time.time()
@@ -233,5 +222,7 @@ while True:
             '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}'
         ]+playlist[start_index:])
 
+    bg_index = 0
     while time.localtime().tm_hour != 11:
-        off_air()
+        off_air(bg_index)
+        bg_index += 1

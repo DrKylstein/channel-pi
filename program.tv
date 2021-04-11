@@ -12,26 +12,33 @@ break:
   shuffle
   play 4
   oneof break_music break_cgi break_educational
-  file Bumpers/ident.mp4
+normal_bumper:
+    file Bumpers/ident.mp4
 shows_block:
+  normal_bumper
   using Shows
   pick
   play 1
   break
+  normal_bumper
   pick
   play 1
   break
 mst3k_block:
+  normal_bumper
   using MST3K;play 1
   break
+  normal_bumper
   using "Rifftrax Shorts";play 1
   using "Rifftrax Features";play 1
   break
 movies_block:
+  normal_bumper
   using Movies
   pick
   play 1
   break
+  normal_bumper
   play 1
   break
 cartoon_shorts:
@@ -43,24 +50,28 @@ cartoon_show:
   pick
   play 1
 cartoon_block:
+  normal_bumper
   oneof cartoon_shorts cartoon_show
   break
+  normal_bumper
   oneof cartoon_shorts cartoon_show
   break
+  normal_bumper
   oneof cartoon_shorts cartoon_show
   break
 graveyard_block:
   using Documentaries;play 1
   using Infomercials;play 1
 adult_swim_block:
+  file "Bumpers/ADULT SWIM Intro (2001).mkv"
   using "Anime and Adult Animation"
   pick
   play 1
   break
+  file "Bumpers/ADULT SWIM Original Bumpers (2001) - Theme.mkv"
   pick
   play 1
   break
-file Bumpers/ident.mp4
 cartoon_block
 mst3k_block
 shows_block
