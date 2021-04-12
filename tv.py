@@ -23,6 +23,8 @@ bg_path = './bg'
 logo_path='./ident_overlay.png'
 
 seed_mutator = ':0001'
+start_day = 18722
+start_hour = 11
 
 def set_fixed_seed(seed):
     random.seed(seed+seed_mutator, 2)
@@ -171,67 +173,61 @@ def build_playlist():
         primitive(item,playlist)
     return playlist
 
+def play(playlist,start_time=None):
+    args = [
+        'cvlc',
+        '--play-and-exit',
+        '--no-video-title-show',
+        '--audio-filter', 'normvol',
+        '--norm-max-level','10',
+        '--audio-filter', 'compressor',
+        '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}',
+    ]
+    if start_time is not None:
+        args += ['--start-time',str(start_time)]
+    subprocess.run(args+playlist)
+
+#fastforward on first boot
+days = (int(time.time()) // (60*60*24)) - start_day
+print(days)
+set_fixed_seed('root')
+for i in range(days):
+    playlist = build_playlist()
+if args.dry_run:
+    for item in playlist:
+        print(item)
+    exit()
+current_time = time.time()
+current_struct = time.localtime(current_time)
+objective_time = time.mktime((
+    current_struct.tm_year,
+    current_struct.tm_mon,
+    current_struct.tm_mday,
+    start_hour,0,0,
+    current_struct.tm_wday,
+    current_struct.tm_yday,
+    current_struct.tm_isdst
+))
+fast_forward = current_time - objective_time
+whole_time = 0
+start_index = 0
+start_time = 0
+if fast_forward >= 0 and fast_forward:
+    for item in playlist:
+        duration = times_db[item]
+        if whole_time + duration > fast_forward:
+            break
+        whole_time += duration
+        start_index += 1
+    if start_index in range(len(playlist)):
+        start_time = fast_forward - whole_time
+        play([playlist[start_index]],start_time)
+        play(playlist[start_index+1:])
+
 #main loop
 while True:
-    playlist = []
-    days = (int(time.time()) // (60*60*24)) - 18722
-    print(days)
-    set_fixed_seed('root')
-    for i in range(days):
-        playlist = build_playlist()
-
-    if args.dry_run:
-        for item in playlist:
-            print(item)
-        exit()
-
-    current_time = time.time()
-    current_struct = time.localtime(current_time)
-    objective_time = time.mktime((
-        current_struct.tm_year,
-        current_struct.tm_mon,
-        current_struct.tm_mday,
-        11,0,0,
-        current_struct.tm_wday,
-        current_struct.tm_yday,
-        current_struct.tm_isdst
-    ))
-    fast_forward = current_time - objective_time
-
-    whole_time = 0
-    start_index = 0
-    start_time = 0
-    if fast_forward >= 0:
-        for item in playlist:
-            duration = times_db[item]
-            if whole_time + duration > fast_forward:
-                break
-            whole_time += duration
-            start_index += 1
-        start_time = fast_forward - whole_time
-
-        subprocess.run([
-            'cvlc',
-            '--play-and-exit',
-            '--start-time',str(start_time),
-            '--no-video-title-show',
-            '--audio-filter', 'normvol',
-            '--norm-max-level','10',
-            '--audio-filter', 'compressor',
-            '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}',
-            playlist[start_index]
-        ])
-        subprocess.run([
-            'cvlc',
-            '--play-and-exit',
-            '--no-video-title-show',
-            '--audio-filter', 'normvol',
-            '--norm-max-level','10',
-            '--audio-filter', 'compressor',
-            '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}'
-        ]+playlist[start_index+1:])
-
     bg_index = 0
-    while time.localtime().tm_hour != 11:
+    while time.localtime().tm_hour != start_hour:
         off_air(bg_index)
         bg_index += 1
+    play(build_playlist())
