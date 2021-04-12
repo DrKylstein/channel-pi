@@ -98,8 +98,7 @@ def off_air(i):
     ])
 #wait for NTP sync
 if not args.no_wait:
-    for i in range(2):
-        off_air(i)
+    off_air(0)
 
 
 times_db = {}
@@ -229,5 +228,5 @@ while True:
     bg_index = 0
     while time.localtime().tm_hour != start_hour:
         off_air(bg_index)
-        bg_index += 1
+        bg_index = (bg_index + 1) % len(bg_pool)
     play(build_playlist())
