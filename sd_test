@@ -1,0 +1,2 @@
+#!/bin/sh
+python3 tv.py -i ./program.tv -s /media/kyle/rootfs/home/pi/Videos --times /media/kyle/rootfs/home/pi/Videos/times.csv --no-wait -N
