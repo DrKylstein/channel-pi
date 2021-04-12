@@ -32,11 +32,13 @@ def in_dir(prefix,f):
 
 class MetaPool:
     def __init__(self,l,seed):
-        prefixes = list(set(map(lambda f: f.rsplit('/',1)[0],l)))
+        prefixes = sorted(list(set(map(lambda f: f.rsplit('/',1)[0],l))))
         self._children = []
+        self._index = 0
         for prefix in prefixes:
             self._children.append(Pool(list(filter(lambda f: in_dir(prefix,f),l)),seed=prefix))
-        self._index = 0
+        set_fixed_seed(seed)
+        random.shuffle(self._children)
 
     def pick(self):
         self._index = (self._index + 1) % len(self._children)
@@ -52,18 +54,14 @@ class MetaPool:
 
 class Pool:
     def __init__(self,l,seed=None):
-
         self._sequential = False
         self._videos = l.copy()
-
+        self._index = 0
         for item in self._videos:
             if item.endswith('.sequential'):
                 self._sequential = True
                 self._videos.remove(item)
                 break
-
-        self._index = int(time.time() // 60*60*24) % len(self._videos)
-
         if self._sequential:
             self._videos.sort()
         else:
@@ -173,15 +171,19 @@ def build_playlist():
         primitive(item,playlist)
     return playlist
 
-if args.dry_run:
-    playlist = build_playlist()
-    for item in playlist:
-        print(item)
-    exit()
-
 #main loop
 while True:
-    playlist = build_playlist()
+    playlist = []
+    days = (int(time.time()) // (60*60*24)) - 18722
+    print(days)
+    set_fixed_seed('root')
+    for i in range(days):
+        playlist = build_playlist()
+
+    if args.dry_run:
+        for item in playlist:
+            print(item)
+        exit()
 
     current_time = time.time()
     current_struct = time.localtime(current_time)
