@@ -1,3 +1,7 @@
+seed_mutator ":0001"
+start_day 2021-04-05
+start_hour 11
+marquee "marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=20,y=20}"
 break_music:
   using "Music Videos"
   play 2
@@ -13,7 +17,12 @@ break:
   play 4
   oneof break_music break_cgi break_educational
 normal_bumper:
-    file Bumpers/ident.mp4
+    file Bumpers/kdtv.mp4
+music_block:
+  normal_bumper
+  using "Music Videos"
+  play 6
+  break
 shows_block:
   normal_bumper
   using Shows
@@ -24,17 +33,13 @@ shows_block:
   pick
   play 1
   break
-mst3k_block:
-  normal_bumper
-  using MST3K;play 1
-  break
-  normal_bumper
-  using "Rifftrax Shorts";play 1
-  using "Rifftrax Features";play 1
-  break
 movies_block:
   normal_bumper
   using Movies
+  pick
+  play 1
+  break
+  normal_bumper
   pick
   play 1
   break
@@ -51,13 +56,19 @@ cartoon_show:
   play 1
 cartoon_block:
   normal_bumper
-  oneof cartoon_shorts cartoon_show
+  cartoon_shorts
   break
   normal_bumper
-  oneof cartoon_shorts cartoon_show
+  cartoon_shorts
   break
   normal_bumper
-  oneof cartoon_shorts cartoon_show
+  cartoon_show
+  break
+  normal_bumper
+  cartoon_show
+  break
+  normal_bumper
+  cartoon_show
   break
 graveyard_block:
   using Documentaries;play 1
@@ -68,13 +79,20 @@ adult_swim_block:
   pick
   play 1
   break
+  using "Look Around You - Series 1"
+  play 1
   file "Bumpers/ADULT SWIM Original Bumpers (2001) - Theme.mkv"
+  using "Anime and Adult Animation"
   pick
   play 1
   break
-cartoon_block
-mst3k_block
-shows_block
-movies_block
-adult_swim_block
-graveyard_block
+every_day:
+  cartoon_block
+  music_block
+  music_block
+  shows_block
+  movies_block
+  adult_swim_block
+  graveyard_block
+off_air:
+  file Bumpers/kdtv.png

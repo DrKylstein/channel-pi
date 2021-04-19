@@ -23,8 +23,9 @@ bg_path = './bg'
 logo_path='./ident_overlay.png'
 
 seed_mutator = ':0001'
-start_day = 18722
+start_day = '2021-04-05'
 start_hour = 11
+marquee = 'marq{marquee=TEST,color=0xFFFF,size=24,position=10,x=20,y=20}'
 
 def set_fixed_seed(seed):
     random.seed(seed+seed_mutator, 2)
@@ -85,22 +86,6 @@ class Pool:
                 return item
 
 
-bg_pool = list(map(lambda a: os.path.join(bg_path,a),os.listdir(bg_path)))
-random.shuffle(bg_pool)
-def off_air(i):
-    subprocess.run([
-        'cvlc',
-        '--play-and-exit',
-        '--no-video-title-show',
-        '--sub-source=marq{marquee=%I:%M%p,size=32,color=0x3ea99b,position=8,x=20,y=20}:logo{file=ident_overlay.png,position=0}'
-        '--image-duration=60',
-        bg_pool[i]
-    ])
-#wait for NTP sync
-if not args.no_wait:
-    off_air(0)
-
-
 times_db = {}
 videos = []
 pools = {}
@@ -124,7 +109,6 @@ for k in pool_keys:
 current_pool = None
 pool_stack = []
 defs = {}
-meta_playlist = []
 
 def primitive(tokens,playlist):
     global current_pool
@@ -164,11 +148,23 @@ with open(program_path) as file:
         if current_def is not None:
             current_def.extend(tokenized)
         else:
-            meta_playlist.extend(tokenized)
+            for tokens in tokenized:
+                if tokens[0] == 'start_hour':
+                    #global start_hour
+                    start_hour = int(tokens[1])
+                elif tokens[0] == 'seed_mutator':
+                    #global seed_mutator
+                    seed_mutator = tokens[1]
+                elif tokens[0] == 'start_day':
+                    #global start_day
+                    start_day = tokens[1]
+                elif tokens[0] == 'marquee':
+                    #global marquee
+                    marquee = tokens[1]
 
 def build_playlist():
     playlist = []
-    for item in meta_playlist:
+    for item in defs['every_day']:
         primitive(item,playlist)
     return playlist
 
@@ -180,21 +176,40 @@ def play(playlist,start_time=None):
         '--audio-filter', 'normvol',
         '--norm-max-level','10',
         '--audio-filter', 'compressor',
-        '--sub-source=marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=24,y=40}:marq{marquee=%I:%M%p,size=18,color=0x3ea99b,position=10,x=20,y=20}',
+        '--sub-source='+marquee,
     ]
     if start_time is not None:
         args += ['--start-time',str(start_time)]
     subprocess.run(args+playlist)
 
+def off_air():
+    playlist = []
+    for item in defs['off_air']:
+        primitive(item,playlist)
+    subprocess.run([
+        'cvlc',
+        '--play-and-exit',
+        '--no-video-title-show',
+        '--sub-source=marq{marquee=%I:%M%p,size=32,color=0xffffff,position=8,x=20,y=20}'
+        '--image-duration=60'
+    ]+playlist)
+
+#wait for NTP sync
+if not args.no_wait:
+    off_air()
+
 #fastforward on first boot
-days = (int(time.time()) // (60*60*24)) - start_day
+days = int(time.time() - time.mktime(time.strptime(start_day,'%Y-%m-%d'))) // (60*60*24)
 print(days)
 set_fixed_seed('root')
 for i in range(days):
     playlist = build_playlist()
 if args.dry_run:
+    total_time = 0
     for item in playlist:
-        print(item)
+        print('{:>02.0f}:{:>02.0f} {}'.format(total_time/(60*60) + start_hour,(total_time/60)%60,item))
+        total_time += times_db[item]
+    print('{:>02.0f}:{:>02.0f}'.format(total_time/(60*60),(total_time/60)%60))
     exit()
 current_time = time.time()
 current_struct = time.localtime(current_time)
@@ -227,6 +242,5 @@ if fast_forward >= 0 and fast_forward:
 while True:
     bg_index = 0
     while time.localtime().tm_hour != start_hour:
-        off_air(bg_index)
-        bg_index = (bg_index + 1) % len(bg_pool)
+        off_air()
     play(build_playlist())
