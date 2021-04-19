@@ -1,0 +1,4 @@
+db.py - generates a csv file containing the lengths of all the videos
+tv.py - uses the times csv and a tv script to play back videos
+kd.tv - example tv script
+
