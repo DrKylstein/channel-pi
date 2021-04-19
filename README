@@ -1,4 +1,15 @@
-db.py - generates a csv file containing the lengths of all the videos
-tv.py - uses the times csv and a tv script to play back videos
-kd.tv - example tv script
+Raspberry Pi powered virtual TV station, plays video files according to a schedule.
+
+It is designed to run on a read-only filesystem and resume where it left off if power is lost.
+I've run it on a Pi Zero with an i2s dac, and on a Pi 3 A+ with the standard analog AV cable.
+Using composite video and an analog RF Modulator, it can be tuned on a TV.
+
+prerequisites:
+    db.py - generate a csv file containing the lengths of all the videos
+
+on the pi itself:
+    tv.py - plays back videos
+    times.csv - times database generated above
+    program.tv - tv script, see kd.tv for an example
+
 
