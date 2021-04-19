@@ -1,2 +1,0 @@
-#!/bin/sh
-python3 db.py -p /media/kyle/rootfs/home/pi/Videos
