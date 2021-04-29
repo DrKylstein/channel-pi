@@ -12,6 +12,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--path','-p', default='./Videos')
 args = parser.parse_args()
 
+allowed_extensions = ('.mp4','.mkv','.avi')
+
 with open(os.path.join(args.path,'times.csv'), mode='w', newline='') as csvfile:
   csvwriter = csv.writer(csvfile)
   csvwriter.writerow(['file','duration'])
@@ -19,7 +21,7 @@ with open(os.path.join(args.path,'times.csv'), mode='w', newline='') as csvfile:
     if root == args.path:
       pool_keys = dirs
     for file in files:
-      if file.endswith('.mp4') or file.endswith('.mkv') or file.endswith('.avi'):
+      if file.endswith(allowed_extensions):
         info = MediaInfo.parse(os.path.join(root,file))
         duration = None
         for track in info.tracks:

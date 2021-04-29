@@ -1,7 +1,10 @@
-seed_mutator ":0001"
+#KDTV - miscellaneous programming
+seed ":0001"
 start_day 2021-04-05
 start_hour 11
 marquee "marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=20,y=20}"
+
+#ad breaks
 break_music:
   using "Music Videos"
   play 2
@@ -16,13 +19,16 @@ break:
   shuffle
   play 4
   oneof break_music break_cgi break_educational
+
 normal_bumper:
     file Bumpers/kdtv.mp4
+
 music_block:
   normal_bumper
   using "Music Videos"
   play 6
   break
+
 shows_block:
   normal_bumper
   using Shows
@@ -33,12 +39,9 @@ shows_block:
   pick
   play 1
   break
+
 movies_block:
-  normal_bumper
   using Movies
-  pick
-  play 1
-  break
   normal_bumper
   pick
   play 1
@@ -46,53 +49,59 @@ movies_block:
   normal_bumper
   play 1
   break
+
 cartoon_shorts:
+  normal_bumper
   using "Cartoon Shorts"
   pick
-  play 2
+  play 3
+  break
 cartoon_show:
+  normal_bumper
   using "Cartoon Shows"
   pick
   play 1
+  break
 cartoon_block:
-  normal_bumper
-  cartoon_shorts
+  cartoon_shorts 4
+  cartoon_show 4
   break
-  normal_bumper
-  cartoon_shorts
-  break
-  normal_bumper
-  cartoon_show
-  break
-  normal_bumper
-  cartoon_show
-  break
-  normal_bumper
-  cartoon_show
-  break
+
 graveyard_block:
   using Documentaries;play 1
   using Infomercials;play 1
+
+#use special sequence of bumpers here
+adult_show:
+  using "Adult Swim Bumpers"
+  play 1
+  using "Anime and Adult Animation"
+  pick
+  play 1
+  break
 adult_swim_block:
-  file "Bumpers/ADULT SWIM Intro (2001).mkv"
-  using "Anime and Adult Animation"
-  pick
-  play 1
-  break
-  using "Look Around You - Series 1"
-  play 1
-  file "Bumpers/ADULT SWIM Original Bumpers (2001) - Theme.mkv"
-  using "Anime and Adult Animation"
-  pick
-  play 1
-  break
-every_day:
+  adult_show 4
+
+#run once, after setting seed and prior to fastforwarding
+__init__:
+  using "Music Videos";shuffle
+  using CGI;shuffle
+  using "Educational Shorts";shuffle
+  using "Music Videos";shuffle
+  using Movies;shuffle
+  using "Cartoon Shorts";shuffle
+  using Documentaries;shuffle
+  using Infomercials;shuffle
+
+#regular programming
+__every_day__:
   cartoon_block
-  music_block
-  music_block
   shows_block
   movies_block
   adult_swim_block
   graveyard_block
-off_air:
+
+#short sequence to run while waiting for NTP sync and after playlist has ended
+#for the day
+__off_air__:
   file Bumpers/kdtv.png
