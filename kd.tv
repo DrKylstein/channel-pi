@@ -62,10 +62,21 @@ cartoon_show:
   pick
   play 1
   break
+cartoon_show_double:
+  normal_bumper
+  using "Cartoon Shows"
+  pick
+  play 1
+  break
+  play 1
+  break
 cartoon_block:
   cartoon_shorts 4
   cartoon_show 4
-  break
+saturday_morning_cartoons:
+  cartoon_shorts 4
+  cartoon_show_double 4
+
 
 graveyard_block:
   using Documentaries;play 1
@@ -93,10 +104,15 @@ __init__:
   using Documentaries;shuffle
   using Infomercials;shuffle
 
-#regular programming
 __every_day__:
   cartoon_block
   shows_block
+  movies_block
+  adult_swim_block
+  graveyard_block
+
+__saturday__:
+  saturday_morning_cartoons
   movies_block
   adult_swim_block
   graveyard_block
