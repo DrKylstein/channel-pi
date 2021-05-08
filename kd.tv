@@ -18,7 +18,7 @@ break:
   using Ads
   shuffle
   play 4
-  oneof break_music break_cgi break_educational
+  oneof break_music break_educational
 
 normal_bumper:
     file Bumpers/kdtv.mp4
@@ -29,19 +29,38 @@ music_block:
   play 6
   break
 
-shows_block:
+cgi_block:
   normal_bumper
-  using Shows
-  pick
+  using "Music Videos"
+  play 3
+  break
+
+techtv_block:
+  normal_bumper
+  using "Computer Chronicles"
   play 1
   break
   normal_bumper
-  pick
+  play 1
+  break
+  cgi_block 2
+  normal_bumper
+  using "Max Headroom"
   play 1
   break
 
 movies_block:
   using Movies
+  normal_bumper
+  pick
+  play 1
+  break
+  normal_bumper
+  play 1
+  break
+
+animated_movies_block:
+  using "Animated Movies"
   normal_bumper
   pick
   play 1
@@ -103,17 +122,17 @@ __init__:
   using "Cartoon Shorts";shuffle
   using Documentaries;shuffle
   using Infomercials;shuffle
+  using "Computer Chronicles";shuffle
 
 __every_day__:
   cartoon_block
-  shows_block
+  techtv_block
   movies_block
-  adult_swim_block
   graveyard_block
 
 __saturday__:
   saturday_morning_cartoons
-  movies_block
+  animated_movies_block
   adult_swim_block
   graveyard_block
 

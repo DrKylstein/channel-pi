@@ -253,7 +253,7 @@ if __name__ == '__main__':
             calendar.day_name[(start_tm.tm_wday + days)%7]
         ))
         for item in playlist:
-            print('{:>02.0f}:{:>02.0f} {:>74}'.format(total_time/(60*60) + start_hour,(total_time/60)%60,item[-74:]))
+            print('{:>02.0f}:{:>02.0f} {:>74}'.format((total_time/(60*60) + start_hour)%23,(total_time/60)%60,item[-74:]))
             total_time += times_db[item]
         print('{:>02.0f}:{:>02.0f}'.format(total_time/(60*60),(total_time/60)%60))
         exit()
