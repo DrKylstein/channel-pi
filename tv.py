@@ -186,7 +186,7 @@ def off_air(playlist):
         '--no-video-title-show',
         '--audio-filter', 'compressor',
         '--sub-source=marq{marquee=%I:%M%p,size=32,color=0xffffff,position=8,x=20,y=20}',
-        '--image-duration=60'
+        '--image-duration=30'
     ]+playlist)
 
 if __name__ == '__main__':
@@ -253,7 +253,7 @@ if __name__ == '__main__':
             calendar.day_name[(start_tm.tm_wday + days)%7]
         ))
         for item in playlist:
-            print('{:>02.0f}:{:>02.0f} {:>74}'.format((total_time/(60*60) + start_hour)%23,(total_time/60)%60,item[-74:]))
+            print('{:>02.0f}:{:>02.0f} {:<74}'.format((total_time/(60*60) + start_hour)%23,(total_time/60)%60,os.path.relpath(item,videos_path)[:74]))
             total_time += times_db[item]
         print('{:>02.0f}:{:>02.0f}'.format(total_time/(60*60),(total_time/60)%60))
         exit()
