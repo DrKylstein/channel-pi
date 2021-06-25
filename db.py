@@ -22,6 +22,7 @@ with open(os.path.join(args.path,'times.csv'), mode='w', newline='') as csvfile:
       pool_keys = dirs
     for file in files:
       if file.endswith(allowed_extensions):
+        print(file)
         info = MediaInfo.parse(os.path.join(root,file))
         duration = None
         for track in info.tracks:

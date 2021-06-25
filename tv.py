@@ -9,9 +9,11 @@ import time
 import shlex
 import csv
 import calendar
+import sys
 
 allowed_extensions = ('.mp4','.mkv','.avi')
 seed_bits = 32
+image_duration = 10
 
 def in_dir(prefix,f):
     return os.path.dirname(f) == prefix
@@ -38,6 +40,9 @@ class MetaPool:
     def grab(self):
         return self._children[self._index].grab()
 
+    def peek(self):
+        return self._children[self._index].peek()
+
 class Pool:
     def __init__(self,l,seed=None):
         self._sequential = False
@@ -53,6 +58,14 @@ class Pool:
         r.shuffle(self._videos)
         self._index = 0
 
+    def peek(self):
+        index = self._index
+        while True:
+            item = self._videos[index]
+            index = (index + 1) % len(self._videos)
+            if time.localtime().tm_mon == 12 or '(xmas)' not in item:
+                return item
+
     def grab(self):
         while True:
             item = self._videos[self._index]
@@ -60,8 +73,25 @@ class Pool:
             if time.localtime().tm_mon == 12 or '(xmas)' not in item:
                 return item
 
+class Error(Exception):
+    """Base class for exceptions in this module."""
+    pass
+
+class InputError(Error):
+    """Exception raised for errors in the input.
+
+    Attributes:
+        expression -- input expression in which the error occurred
+        message -- explanation of the error
+    """
+
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
 class Program:
-    def __init__(self, file, pools):
+    def __init__(self, file, pools, times):
+        self._times = times
         self._pools = pools
         defs = {}
         params = {
@@ -120,26 +150,65 @@ class Program:
             def __init__(self):
                 self.current_pool = None
                 self.pool_stack = []
+                self.current_time = 0
 
         def primitive(tokens,playlist,state):
+            def play(video):
+                playlist.append(video)
+                print('{:>02.0f}:{:>02.0f} {:<74}'.format(
+                    (state.current_time//(60*60))+self.params['start_hour'],
+                    (state.current_time//60)%60,
+                    os.path.relpath(video,videos_path)[:74])
+                )
+                state.current_time += self._times.get(video,image_duration)
             command, *args = tokens
             if command == 'using':
                 state.current_pool = args[0]
             elif command == 'play':
-                for i in range(int(args[0])):
-                    playlist.append(pools[state.current_pool].grab())
+                parser = argparse.ArgumentParser()
+                parser.add_argument('repeat',default=1,nargs='?',type=int)
+                parser.add_argument('--until')
+                #parser.add_argument('--max',default=sys.maxsize/60,type=float)
+                parser.add_argument('--ignore',default=0,type=float)
+                pargs = parser.parse_args(args)
+                repeat = 1
+                if pargs.until:
+                    evens = {
+                        ':00':60*60,
+                        ':30':30*60,
+                        ':15':15*60,
+                        ':7.5':7.5*60,
+                    }
+                    target = (
+                        state.current_time -
+                        (state.current_time % (evens[pargs.until]-1)) +
+                        evens[pargs.until]
+                    )
+                    # play once and exit if we are barely over
+                    if state.current_time % evens[pargs.until] < pargs.ignore*60:
+                        play(pools[state.current_pool].grab())
+                    else:
+                        while True:
+                            video = pools[state.current_pool].peek()
+                            video_time = self._times.get(video,image_duration)
+                            if state.current_time + video_time > target:
+                                break
+                            play(pools[state.current_pool].grab())
+                else:
+                    for i in range(pargs.repeat):
+                        play(pools[state.current_pool].grab())
             elif command == 'shuffle':
                 pools[state.current_pool].shuffle()
             elif command == 'pick':
                 pools[state.current_pool].pick()
             elif command == 'file':
-                playlist.append(os.path.join(videos_path,args[0]))
+                play(os.path.join(videos_path,args[0]))
             elif command == 'oneof':
                 primitive([random.choice(args)],playlist,state)
             else:
                 repeat = 1
-                if len(tokens) > 1:
-                    repeat = int(tokens[1])
+                if len(args) >= 1:
+                    repeat = int(args[0])
                 for i in range(repeat):
                     state.pool_stack.append(state.current_pool)
                     for tokens in self.defs[command]:
@@ -173,7 +242,7 @@ def play(playlist,marquee,start_time=None):
         '--no-video-title-show',
         '--audio-filter', 'compressor',
         '--sub-source='+marquee,
-        '--image-duration=60'
+        '--image-duration={}'.format(image_duration)
     ]
     if start_time is not None:
         args += ['--start-time',str(start_time)]
@@ -186,7 +255,7 @@ def off_air(playlist):
         '--no-video-title-show',
         '--audio-filter', 'compressor',
         '--sub-source=marq{marquee=%I:%M%p,size=32,color=0xffffff,position=8,x=20,y=20}',
-        '--image-duration=30'
+        '--image-duration={}'.format(image_duration)
     ]+playlist)
 
 if __name__ == '__main__':
@@ -221,7 +290,7 @@ if __name__ == '__main__':
             times_db[os.path.join(videos_path,row['file'])] = int(row['duration'])
 
     with open(program_path) as file:
-        program = Program(file,pools)
+        program = Program(file,pools,times_db)
 
     random.seed(program.params['seed'],2)
     start_day = program.params['start_day']
@@ -246,16 +315,17 @@ if __name__ == '__main__':
     print('fastforwarded {} days'.format(days))
     for i in range(days+1):
         playlist = program.run(wday=(start_tm.tm_wday + i)%7)
+        print()
     if args.dry_run:
-        total_time = 0
-        print('start weekday {}, end weekday {}'.format(
-            calendar.day_name[start_tm.tm_wday],
-            calendar.day_name[(start_tm.tm_wday + days)%7]
-        ))
-        for item in playlist:
-            print('{:>02.0f}:{:>02.0f} {:<74}'.format((total_time/(60*60) + start_hour)%23,(total_time/60)%60,os.path.relpath(item,videos_path)[:74]))
-            total_time += times_db[item]
-        print('{:>02.0f}:{:>02.0f}'.format(total_time/(60*60),(total_time/60)%60))
+        # total_time = 0
+        # print('start weekday {}, end weekday {}'.format(
+        #     calendar.day_name[start_tm.tm_wday],
+        #     calendar.day_name[(start_tm.tm_wday + days)%7]
+        # ))
+        # for item in playlist:
+        #     print('{:>02.0f}:{:>02.0f} {:<74}'.format((total_time/(60*60) + start_hour)%23,(total_time/60)%59,os.path.relpath(item,videos_path)[:74]))
+        #     total_time += times_db.get(item,image_duration)
+        # print('{:>02.0f}:{:>02.0f}'.format(total_time/(60*60),(total_time/60)%59))
         exit()
     current_time = time.time()
     current_struct = time.localtime(current_time)
@@ -272,7 +342,7 @@ if __name__ == '__main__':
     whole_time = 0
     start_index = 0
     start_time = 0
-    if fast_forward >= 0 and fast_forward:
+    if fast_forward >= 0:
         for item in playlist:
             duration = times_db[item]
             if whole_time + duration > fast_forward:

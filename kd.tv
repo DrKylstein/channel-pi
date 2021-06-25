@@ -1,24 +1,14 @@
 #KDTV - miscellaneous programming
 seed ":0001"
-start_day 2021-04-05
+start_day 2021-05-17
 start_hour 11
 marquee "marq{marquee=KDTV,color=0xAA87DE,size=24,position=10,x=20,y=20}"
 
 #ad breaks
-break_music:
-  using "Music Videos"
-  play 2
-break_cgi:
-  using CGI
-  play 1
-break_educational:
-  using "Educational Shorts"
-  play 1
 break:
   using Ads
   shuffle
-  play 4
-  oneof break_music break_educational
+  play --until=:15 --ignore=3
 
 normal_bumper:
     file Bumpers/kdtv.mp4
@@ -26,68 +16,68 @@ normal_bumper:
 music_block:
   normal_bumper
   using "Music Videos"
-  play 6
+  play 4
   break
 
 cgi_block:
   normal_bumper
-  using "Music Videos"
-  play 3
+  using "CGI"
+  play 4
   break
 
 techtv_block:
   normal_bumper
   using "Computer Chronicles"
-  play 1
+  play
   break
   normal_bumper
-  play 1
+  play
   break
   cgi_block 2
   normal_bumper
   using "Max Headroom"
-  play 1
+  play
   break
 
 movies_block:
   using Movies
   normal_bumper
   pick
-  play 1
+  play
   break
   normal_bumper
-  play 1
+  play
   break
 
 animated_movies_block:
   using "Animated Movies"
   normal_bumper
   pick
-  play 1
+  play
   break
   normal_bumper
-  play 1
+  play
   break
 
 cartoon_shorts:
   normal_bumper
   using "Cartoon Shorts"
   pick
-  play 3
+  play 2
   break
 cartoon_show:
   normal_bumper
   using "Cartoon Shows"
   pick
-  play 1
+  play
   break
 cartoon_show_double:
   normal_bumper
   using "Cartoon Shows"
   pick
-  play 1
+  play
   break
-  play 1
+  play
   break
 cartoon_block:
   cartoon_shorts 4
@@ -98,16 +88,16 @@ saturday_morning_cartoons:
 
 
 graveyard_block:
-  using Documentaries;play 1
-  using Infomercials;play 1
+  using Documentaries;play
+  using Infomercials;play
 
 #use special sequence of bumpers here
 adult_show:
   using "Adult Swim Bumpers"
-  play 1
+  play
   using "Anime and Adult Animation"
   pick
-  play 1
+  play
   break
 adult_swim_block:
   adult_show 4
@@ -127,6 +117,8 @@ __init__:
 __every_day__:
   cartoon_block
   techtv_block
+  music_block
+  music_block
   movies_block
   graveyard_block
 
