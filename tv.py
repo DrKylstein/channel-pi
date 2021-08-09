@@ -12,51 +12,29 @@ import calendar
 import sys
 
 allowed_extensions = ('.mp4','.mkv','.avi')
-seed_bits = 32
 image_duration = 10
 
-def in_dir(prefix,f):
-    return os.path.dirname(f) == prefix
-
-class MetaPool:
-    def __init__(self,l,seed):
-        prefixes = sorted(list(set(map(lambda f: f.rsplit('/',1)[0],l))))
-        self._children = []
-        self._index = 0
-        for prefix in prefixes:
-            self._children.append(Pool(list(filter(lambda f: in_dir(prefix,f),l)),seed=prefix))
-
-    def pick(self):
-        self._index = (self._index + 1) % len(self._children)
-
-    def shuffle(self):
-        #don't want the state of random to depend on len()
-        r = random.Random(random.getrandbits(seed_bits))
-        r.shuffle(self._children)
-        self._index = 0
-        for child in self._children:
-            child.shuffle()
-
-    def grab(self):
-        return self._children[self._index].grab()
-
-    def peek(self):
-        return self._children[self._index].peek()
+def wall_time(d):
+    return '{:>02.0f}:{:>02.0f}'.format(
+        (d//(60*60))%24,
+        (d//60)%60
+    )
 
 class Pool:
-    def __init__(self,l,seed=None):
-        self._sequential = False
-        self._videos = l.copy()
-        self._index = 0
+    def __init__(self,path,shuffled,seed=None,offset=0):
+        self._videos = []
+        if os.path.isdir(path):
+            for root, dirs, files in os.walk(path):
+                for file in files:
+                    if file.endswith(allowed_extensions):
+                        self._videos.append(os.path.join(root,file))
+        else:
+            self._videos.append(path)
+        self._index = offset % len(self._videos)
         self._videos.sort()
-
-    def pick(self):
-        pass
-
-    def shuffle(self):
-        r = random.Random(random.getrandbits(seed_bits))
-        r.shuffle(self._videos)
-        self._index = 0
+        if shuffled:
+            r = random.Random(seed if seed else path)
+            r.shuffle(self._videos)
 
     def peek(self):
         index = self._index
@@ -73,29 +51,12 @@ class Pool:
             if time.localtime().tm_mon == 12 or '(xmas)' not in item:
                 return item
 
-class Error(Exception):
-    """Base class for exceptions in this module."""
-    pass
-
-class InputError(Error):
-    """Exception raised for errors in the input.
-
-    Attributes:
-        expression -- input expression in which the error occurred
-        message -- explanation of the error
-    """
-
-    def __init__(self, expression, message):
-        self.expression = expression
-        self.message = message
-
 class Program:
-    def __init__(self, file, pools, times):
+    def __init__(self, file, times):
         self._times = times
-        self._pools = pools
+        self._pools = {}
         defs = {}
         params = {
-            'seed_mutator':':0001',
             'start_day':'2021-04-05',
             'start_hour':11,
             'marquee':'marq{marquee=TEST,color=0xFFFF,size=24,position=10,x=20,y=20}'
@@ -148,72 +109,75 @@ class Program:
 
         class ProgramState:
             def __init__(self):
-                self.current_pool = None
-                self.pool_stack = []
                 self.current_time = 0
 
         def primitive(tokens,playlist,state):
             def play(video):
                 playlist.append(video)
-                print('{:>02.0f}:{:>02.0f} {:<74}'.format(
-                    (state.current_time//(60*60))+self.params['start_hour'],
-                    (state.current_time//60)%60,
-                    os.path.relpath(video,videos_path)[:74])
-                )
                 state.current_time += self._times.get(video,image_duration)
             command, *args = tokens
-            if command == 'using':
-                state.current_pool = args[0]
-            elif command == 'play':
-                parser = argparse.ArgumentParser()
-                parser.add_argument('repeat',default=1,nargs='?',type=int)
+            if command == 'play':
+                parser = argparse.ArgumentParser(prog='play')
+                parser.add_argument('file')
+                parser.add_argument('--shuffled',action='store_true')
+                parser.add_argument('--repeat',default=1,nargs='?',type=int)
                 parser.add_argument('--until')
-                #parser.add_argument('--max',default=sys.maxsize/60,type=float)
                 parser.add_argument('--ignore',default=0,type=float)
+                parser.add_argument('--suppress','-q',action='store_true'),
+                parser.add_argument('--no_min',action='store_true'),
                 pargs = parser.parse_args(args)
                 repeat = 1
-                if pargs.until:
-                    evens = {
-                        ':00':60*60,
-                        ':30':30*60,
-                        ':15':15*60,
-                        ':7.5':7.5*60,
-                    }
-                    target = (
-                        state.current_time -
-                        (state.current_time % (evens[pargs.until]-1)) +
-                        evens[pargs.until]
+                if pargs.file not in pools:
+                    path = pargs.file.split('#')[0]
+                    pools[pargs.file] = Pool(
+                        os.path.join(videos_path,path),
+                        pargs.shuffled
                     )
-                    # play once and exit if we are barely over
-                    if state.current_time % evens[pargs.until] < pargs.ignore*60:
-                        play(pools[state.current_pool].grab())
+                if pargs.until:
+                    if not pargs.suppress:
+                        print('  {} '.format(wall_time(state.current_time + self.params['start_hour']*60*60)),end='')
+                    if pargs.until.startswith(':'):
+                        target_amount = int(pargs.until[1:])
+                        current_minutes = state.current_time//60
+                        target = (current_minutes - (current_minutes % target_amount) + target_amount)*60
+                        if current_minutes % target_amount <= pargs.ignore:
+                            target = state.current_time
                     else:
-                        while True:
-                            video = pools[state.current_pool].peek()
-                            video_time = self._times.get(video,image_duration)
-                            if state.current_time + video_time > target:
-                                break
-                            play(pools[state.current_pool].grab())
+                        target_amount = int(pargs.until) - self.params['start_hour']
+                        current_hours = state.current_time//(60*60)
+                        target = (current_hours - (current_hours % 24) + target_amount)*(60*60)
+                    count = 0
+                    while True:
+                        video = pools[pargs.file].peek()
+                        video_time = self._times.get(video,image_duration)
+                        if (count > 0 or pargs.no_min) and state.current_time + video_time > target:
+                            break
+                        play(pools[pargs.file].grab())
+                        count += 1
+                    if not pargs.suppress:
+                        print('played {} {} times'.format(pargs.file,count))
                 else:
                     for i in range(pargs.repeat):
-                        play(pools[state.current_pool].grab())
-            elif command == 'shuffle':
-                pools[state.current_pool].shuffle()
-            elif command == 'pick':
-                pools[state.current_pool].pick()
-            elif command == 'file':
-                play(os.path.join(videos_path,args[0]))
-            elif command == 'oneof':
-                primitive([random.choice(args)],playlist,state)
+                        video = pools[pargs.file].grab()
+                        if not pargs.suppress:
+                            print(
+                                '{} {:<72}'.format(
+                                    wall_time(state.current_time + self.params['start_hour']*60*60),
+                                    os.path.relpath(video,videos_path)[:72]
+                                )
+                            )
+                        play(video)
+            elif command == 'print':
+                print(' '.join(args))
             else:
-                repeat = 1
-                if len(args) >= 1:
-                    repeat = int(args[0])
-                for i in range(repeat):
-                    state.pool_stack.append(state.current_pool)
-                    for tokens in self.defs[command]:
-                        primitive(tokens,playlist,state)
-                    state.current_pool = state.pool_stack.pop()
+                for sub_tokens in self.defs[command]:
+                    replaced_tokens = []
+                    for sub_token in sub_tokens:
+                        for i in range(len(tokens)):
+                            sub_token = sub_token.replace('${}'.format(i),tokens[i])
+                        if '$' not in sub_token:
+                            replaced_tokens.append(sub_token)
+                    primitive(replaced_tokens,playlist,state)
 
         wdays = [
             '__monday__',
@@ -231,7 +195,12 @@ class Program:
         playlist = []
         state = ProgramState()
         for item in self.defs[entrypoint]:
-            primitive(item,playlist,state)
+            try:
+                primitive(item,playlist,state)
+            except Exception as error:
+                print(item,state)
+                raise error
+
         return playlist
 
 
@@ -272,17 +241,6 @@ if __name__ == '__main__':
     program_path = args.program
     times_db = {}
     videos = []
-    pools = {}
-    pool_keys = None
-
-    for root, dirs, files in os.walk(videos_path):
-        if root == videos_path:
-            pool_keys = dirs
-        for file in files:
-            if file.endswith(allowed_extensions):
-                videos.append(os.path.join(root,file))
-    for k in pool_keys:
-        pools[k] = MetaPool(list(filter(lambda f: '/{}/'.format(k) in f, videos)),k)
 
     with open(args.times,newline='') as f:
         reader = csv.DictReader(f)
@@ -290,16 +248,12 @@ if __name__ == '__main__':
             times_db[os.path.join(videos_path,row['file'])] = int(row['duration'])
 
     with open(program_path) as file:
-        program = Program(file,pools,times_db)
+        program = Program(file,times_db)
 
-    random.seed(program.params['seed'],2)
     start_day = program.params['start_day']
     start_hour = program.params['start_hour']
     marquee = program.params['marquee']
 
-
-
-    program.run('__init__')
     off_air_playlist = program.run('__off_air__')
 
     #wait for NTP sync
