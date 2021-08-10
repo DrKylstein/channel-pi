@@ -59,7 +59,8 @@ class Program:
         params = {
             'start_day':'2021-04-05',
             'start_hour':11,
-            'marquee':'marq{marquee=TEST,color=0xFFFF,size=24,position=10,x=20,y=20}'
+            'marquee':'marq{marquee=TEST,color=0xFFFF,size=24,position=10,x=20,y=20}',
+            'shuffled':[]
         }
         current_def = None
         for line in file:
@@ -81,6 +82,8 @@ class Program:
                 for tokens in tokenized:
                     if tokens[0] == 'start_hour':
                         params['start_hour'] = int(tokens[1])
+                    elif len(tokens) > 2:
+                        params[tokens[0]] = tokens[1:]
                     else:
                         params[tokens[0]] = tokens[1]
         weekdays = [
@@ -119,7 +122,6 @@ class Program:
             if command == 'play':
                 parser = argparse.ArgumentParser(prog='play')
                 parser.add_argument('file')
-                parser.add_argument('--shuffled',action='store_true')
                 parser.add_argument('--repeat',default=1,nargs='?',type=int)
                 parser.add_argument('--until')
                 parser.add_argument('--ignore',default=0,type=float)
@@ -131,7 +133,7 @@ class Program:
                     path = pargs.file.split('#')[0]
                     pools[pargs.file] = Pool(
                         os.path.join(videos_path,path),
-                        pargs.shuffled
+                        path in self.params['shuffled']
                     )
                 if pargs.until:
                     if not pargs.suppress:
@@ -143,7 +145,7 @@ class Program:
                         if current_minutes % target_amount <= pargs.ignore:
                             target = state.current_time
                     else:
-                        target_amount = int(pargs.until) - self.params['start_hour']
+                        target_amount = float(pargs.until) - self.params['start_hour']
                         current_hours = state.current_time//(60*60)
                         target = (current_hours - (current_hours % 24) + target_amount)*(60*60)
                     count = 0
