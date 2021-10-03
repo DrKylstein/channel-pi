@@ -335,10 +335,10 @@ vlc_args = [
     '--audio-filter', 'compressor',
     '--compressor-rms-peak=0.0',
     '--compressor-attack=50.0',
-    '--compressor-threshold=-20.0',
+    '--compressor-threshold=-30.0',
     '--compressor-ratio=20.0',
     '--compressor-knee=1.0',
-    '--compressor-makeup-gain=12.0',
+    '--compressor-makeup-gain=18.0',
     '--image-duration={}'.format(image_duration)
 ]
 
