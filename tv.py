@@ -324,39 +324,36 @@ class Program:
 
         return playlist
 
+vlc_args = [
+    'cvlc',
+    '--play-and-exit',
+    '--no-video-title-show',
+    '--audio-replay-gain-mode','track',
+    #'--audio-filter', 'normvol',
+    #'--norm-max-level','2.0',
+    #'--norm-buff-size','10',
+    '--audio-filter', 'compressor',
+    '--compressor-rms-peak=0.0',
+    '--compressor-attack=50.0',
+    '--compressor-threshold=-20.0',
+    '--compressor-ratio=20.0',
+    '--compressor-knee=1.0',
+    '--compressor-makeup-gain=12.0',
+    '--image-duration={}'.format(image_duration)
+]
 
 def play(playlist,marquee,start_time=None):
-    args = [
-        'cvlc',
-        '--play-and-exit',
-        '--no-video-title-show',
-        '--audio-replay-gain-mode','track',
-        #'--audio-filter', 'normvol',
-        #'--norm-max-level','2.0',
-        #'--norm-buff-size','10',
-        #'--audio-filter', 'compressor',
-        #'--compressor-makeup-gain=12.0',
+    args = vlc_args + [
         '--sub-source='+marquee,
-        '--image-duration={}'.format(image_duration)
     ]
     if start_time is not None:
         args += ['--start-time',str(start_time)]
     subprocess.run(args+playlist)
 
 def off_air(playlist):
-    subprocess.run([
-        'cvlc',
-        '--play-and-exit',
-        '--no-video-title-show',
-        '--audio-replay-gain-mode','track',
-        #'--audio-filter', 'normvol',
-        #'--norm-max-level','2.0',
-        #'--norm-buff-size','10',
-        #'--audio-filter', 'compressor',
-        #'--compressor-makeup-gain=12.0',
+    subprocess.run(vlc_args + [
         '--sub-source=marq{marquee=%I:%M%p,size=32,color=0xffffff,position=8,x=20,y=20}',
-        '--image-duration={}'.format(image_duration)
-    ]+playlist)
+    ] + playlist)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -434,7 +431,7 @@ if __name__ == '__main__':
                             name = name[len(item['path']):].strip()
                         name = re.sub(r' (?:(?:xvid(?: edit)?)|(?:low)|(?:med)|(?:highTV)|(?:HDmed))$','',name)
                         name = re.sub(r'([a-z])-?([A-Z])',r'\1 \2',name)
-                        f.write('<tr><th>{}</th><td>{} <i>"{}"</i></td></tr>'.format(time,item['path'],name))
+                        f.write('<tr><th>{}</th><td>{} <i>"{}"</i></td></tr>'.format(time,os.path.split(item['path'])[-1],name))
                     else:
                         f.write('<tr><th>{}</th><td>{}</td></tr>'.format(time,item['path']))
             f.write('</table></body></html>')
