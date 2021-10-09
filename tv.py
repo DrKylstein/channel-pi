@@ -32,23 +32,18 @@ class SequentialPool:
                         self._videos.append(os.path.join(root,file))
         else:
             self._videos.append(path)
-        self._next_index = offset % len(self._videos)
         self._videos.sort()
+        self._index = offset % len(self._videos)
 
-    def _get_next_index(self,index):
-        while True:
-            index = (index + 1) % len(self._videos)
-            item = self._videos[index]
-            if time.localtime().tm_mon == 12 or '(xmas)' not in item:
-                return index
+    def get(self):
+        return self._videos[self._index]
 
-    def peek(self):
-        return self._videos[self._next_index]
+    def advance(self):
+        self._index = (self._index + 1) % len(self._videos)
 
-    def grab(self):
-        index = self._next_index
-        self._next_index = self._get_next_index(index)
-        return self._videos[index]
+    def reject(self):
+        return self.advance()
+
 
 class ShuffledPool:
     def __init__(self,path,seed):
@@ -63,22 +58,17 @@ class ShuffledPool:
         self._videos.sort()
         r = random.Random(seed)
         r.shuffle(self._videos)
-        self._next_index = self._get_next_index(0)
+        self._index = 0
 
-    def _get_next_index(self, index):
-        while True:
-            index = (index + 1) % len(self._videos)
-            item = self._videos[index]
-            if time.localtime().tm_mon == 12 or '(xmas)' not in item:
-                return index
+    def get(self):
+        return self._videos[self._index]
 
-    def peek(self):
-        return self._videos[self._next_index]
+    def advance(self):
+        self._index = (self._index + 1) % len(self._videos)
 
-    def grab(self):
-        index = self._next_index
-        self._next_index = self._get_next_index(index)
-        return self._videos[index]
+    def reject(self):
+        return self.advance()
+
 
 class RandomPool:
     def __init__(self,path,seed,memory):
@@ -94,33 +84,41 @@ class RandomPool:
         self._random = random.Random(seed)
         self._history = []
         self._memory = memory
-        self._next_index = self._get_next_index()
+        self._index = self._random.randrange(len(self._videos))
 
-    def _get_next_index(self):
-        index  = 0
+    def get(self):
+        return self._videos[self._index]
+
+    def advance(self):
         while True:
-            index = self._random.randrange(len(self._videos))
-            if index in self._history:
-                continue
-            item = self._videos[index]
-            if time.localtime().tm_mon == 12 or '(xmas)' not in item:
+            self._index = self._random.randrange(len(self._videos))
+            if self._index not in self._history:
                 break
-        self._history.append(index)
+        self._history.append(self._index)
         if len(self._history) > self._memory:
             self._history = self._history[1:]
-        return index
 
-    def peek(self):
-        return self._videos[self._next_index]
+    def reject(self):
+        self._history.pop()
+        return self.advance()
 
-    def grab(self):
-        index = self._next_index
-        self._next_index = self._get_next_index()
-        return self._videos[index]
+
+def wrongMonth(video,month):
+    if month is None:
+        return False
+    if '(halloween)' in video and month != 10:
+        return True
+    if '(thanksgiving)' in video and month != 11:
+        return True
+    if '(xmas)' in video and month != 12:
+        return True
+    return False
+
 
 class TVProgramError(Exception):
     def __init__(self,message):
         self.message = message
+
 
 class Program:
     def __init__(self, file, times):
@@ -206,7 +204,7 @@ class Program:
         self.defs = defs
         self.params = params
 
-    def run(self,entrypoint=None,wday=None,verbose=False,epg=[]):
+    def run(self,date=None,entrypoint=None,verbose=False,epg=[]):
         wdays = [
             '__monday__',
             '__tuesday__',
@@ -217,8 +215,8 @@ class Program:
             '__sunday__'
         ]
         pools = self._pools
-        if wday is not None:
-            print(wdays[wday])
+        if date is not None:
+            print(wdays[date.weekday()])
         class ProgramState:
             def __init__(self):
                 self.current_time = 0
@@ -246,6 +244,7 @@ class Program:
                     #raise TVProgramError('Pool "{}" not defined'.format(pargs.file))
                     path = pargs.file.split('#')[0]
                     self._pools[pargs.file] = SequentialPool(os.path.join(videos_path,path))
+                pool = self._pools[pargs.file]
                 if pargs.until:
                     if verbose or not pargs.suppress:
                         t = wall_time(state.current_time + self.params['start_hour']*60*60)
@@ -269,19 +268,29 @@ class Program:
                     while True:
                         if pargs.max is not None and count >= pargs.max:
                             break
-                        video = pools[pargs.file].peek()
+                        video = pool.get()
+                        if date is not None:
+                            while wrongMonth(video,date.month):
+                                pool.reject()
+                                video = pool.get()
                         video_time = self._times.get(video,image_duration)
                         if count >= pargs.min and state.current_time + video_time > target:
                             break
                         if verbose:
                             print('  {}'.format(video))
-                        play(pools[pargs.file].grab())
+                        pool.advance()
+                        play(video)
                         count += 1
                     if verbose or not pargs.suppress:
                         print('played {} {} times'.format(pargs.file,count))
                 else:
                     for i in range(pargs.repeat):
-                        video = pools[pargs.file].grab()
+                        video = pool.get()
+                        if date is not None:
+                            while wrongMonth(video,date.month):
+                                pool.reject()
+                                video = pool.get()
+                        pool.advance()
                         if not pargs.suppress:
                             t = wall_time(state.current_time + self.params['start_hour']*60*60)
                             p = os.path.relpath(video,videos_path)
@@ -311,7 +320,7 @@ class Program:
 
 
         if entrypoint is None:
-            entrypoint = wdays[wday]
+            entrypoint = wdays[date.weekday()]
 
         playlist = []
         state = ProgramState()
@@ -384,7 +393,7 @@ if __name__ == '__main__':
     start_hour = program.params['start_hour']
     marquee = program.params['marquee']
 
-    off_air_playlist = program.run('__off_air__')
+    off_air_playlist = program.run(entrypoint='__off_air__')
 
     #wait for NTP sync
     if not args.no_wait:
@@ -399,15 +408,14 @@ if __name__ == '__main__':
     print('fastforwarded {} days'.format(days))
     epg = []
     for i in range(days+1):
-        wday = (start_tm.tm_wday + i)%7
-        d = datetime.date(start_tm.tm_year,start_tm.tm_mon,start_tm.tm_mday) + datetime.timedelta(days=i)
-        if d >= datetime.date.today():
+        date = datetime.date(start_tm.tm_year,start_tm.tm_mon,start_tm.tm_mday) + datetime.timedelta(days=i)
+        if date >= datetime.date.today():
             epg.append({
-                'title':'{} {}'.format(calendar.day_name[wday],d.isoformat())
+                'title':'{} {}'.format(calendar.day_name[date.weekday()],date.isoformat())
             })
-            playlist = program.run(wday=wday,verbose=args.verbose,epg=epg)
+            playlist = program.run(date=date,verbose=args.verbose,epg=epg)
         else:
-            playlist = program.run(wday=wday,verbose=args.verbose)
+            playlist = program.run(date=date,verbose=args.verbose)
         print()
     if args.epg:
         with open(args.epg, mode='w') as f:
@@ -469,4 +477,4 @@ if __name__ == '__main__':
         bg_index = 0
         while time.localtime().tm_hour != start_hour:
             off_air(off_air_playlist)
-        play(program.run(wday=time.localtime().tm_wday),marquee)
+        play(program.run(date=datetime.date.today()),marquee)
