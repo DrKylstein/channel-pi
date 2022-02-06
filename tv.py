@@ -22,6 +22,14 @@ def wall_time(d):
         (d//60)%60
     )
 
+def rounded_wall_time(d):
+    t = wall_time(d)
+    if t.split(':')[1] in ('59','58'):
+        return '{:>02.0f}:{:>02.0f}'.format(int(t.split(':')[0])+1,0)
+    if t.split(':')[1] in ('29','28'):
+        return '{:>02.0f}:{:>02.0f}'.format(int(t.split(':')[0]),30)
+    return t
+
 class SequentialPool:
     def __init__(self,path,offset=0):
         self._videos = []
@@ -250,7 +258,7 @@ class Program:
                         t = wall_time(state.current_time + self.params['start_hour']*60*60)
                         p = pargs.file
                         epg.append({
-                            'time':t,
+                            'time':state.current_time + self.params['start_hour']*60*60,
                             'path':p
                         })
                         print('{} '.format(t),end='')
@@ -301,7 +309,7 @@ class Program:
                                 )
                             )
                             epg.append({
-                                'time':t,
+                                'time':state.current_time + self.params['start_hour']*60*60,
                                 'path':os.path.split(p)[-2],
                                 'file': os.path.splitext(os.path.split(p)[-1])[0]
                             })
@@ -410,21 +418,23 @@ if __name__ == '__main__':
     for i in range(days+1):
         date = datetime.date(start_tm.tm_year,start_tm.tm_mon,start_tm.tm_mday) + datetime.timedelta(days=i)
         if date >= datetime.date.today():
-            epg.append({
-                'title':'{} {}'.format(calendar.day_name[date.weekday()],date.isoformat())
-            })
-            playlist = program.run(date=date,verbose=args.verbose,epg=epg)
+            epg_day = {
+                'day':calendar.day_name[date.weekday()],
+                'date':date.isoformat(),
+                'program':[]
+            }
+            epg.append(epg_day)
+            playlist = program.run(date=date,verbose=args.verbose,epg=epg_day['program'])
         else:
             playlist = program.run(date=date,verbose=args.verbose)
         print()
     if args.epg:
         with open(args.epg, mode='w') as f:
             f.write('<html><body><table border=1>')
-            for item in epg:
-                if 'title' in item:
-                    f.write('<tr><th colspan=2>{}</th></tr>'.format(item['title']))
-                else:
-                    t = list(map(int,item['time'].split(':')))
+            for epg_day in epg:
+                f.write('<tr><th colspan=2>{} {}</th></tr>'.format(epg_day['day'],epg_day['date']))
+                for item in epg_day['program']:
+                    t = list(map(int,rounded_wall_time(item['time']).split(':')))
                     pm = False
                     if t[0] >= 12:
                         pm = True
@@ -439,9 +449,9 @@ if __name__ == '__main__':
                             name = name[len(item['path']):].strip()
                         name = re.sub(r' (?:(?:xvid(?: edit)?)|(?:low)|(?:med)|(?:highTV)|(?:HDmed))$','',name)
                         name = re.sub(r'([a-z])-?([A-Z])',r'\1 \2',name)
-                        f.write('<tr><th>{}</th><td>{} <i>"{}"</i></td></tr>'.format(time,os.path.split(item['path'])[-1],name))
+                        f.write('<tr><th>{}</th><td>{}<br><i>"{}"</i></td></tr>'.format(time,os.path.split(item['path'])[-1],name))
                     else:
-                        f.write('<tr><th>{}</th><td>{}</td></tr>'.format(time,item['path']))
+                        f.write('<tr><th>{}</th><td>{}<br><br></td></tr>'.format(time,item['path'].split('#')[0]))
             f.write('</table></body></html>')
     if args.dry_run:
         exit()
