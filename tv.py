@@ -90,9 +90,9 @@ class RandomPool:
             self._videos.append(path)
         self._videos.sort()
         self._random = random.Random(seed)
-        self._history = []
         self._memory = memory
         self._index = self._random.randrange(len(self._videos))
+        self._history = [self._index]
 
     def get(self):
         return self._videos[self._index]
