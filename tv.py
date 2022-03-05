@@ -436,6 +436,7 @@ if __name__ == '__main__':
 
     #wait for NTP sync
     if not args.no_wait:
+        print('Waiting for accurate time...')
         off_air(off_air_playlist)
 
     #fastforward on first boot
@@ -446,7 +447,7 @@ if __name__ == '__main__':
     )//(60*60*24)
     print('fastforwarded {} days'.format(days))
     epg = []
-    for i in range(days+1):
+    for i in range(days):
         date = datetime.date(start_tm.tm_year,start_tm.tm_mon,start_tm.tm_mday) + datetime.timedelta(days=i)
         if date >= datetime.date.today():
             epg_day = {
@@ -484,24 +485,31 @@ if __name__ == '__main__':
                     else:
                         f.write('<tr><th>{}</th><td>{}<br><br></td></tr>'.format(time,item['path'].split('#')[0]))
             f.write('</table></body></html>')
-    if args.dry_run:
-        exit()
-    current_time = time.time()
-    current_struct = time.localtime(current_time)
-    objective_time = time.mktime((
-        current_struct.tm_year,
-        current_struct.tm_mon,
-        current_struct.tm_mday,
-        start_hour,0,0,
-        current_struct.tm_wday,
-        current_struct.tm_yday,
-        current_struct.tm_isdst
-    ))
-    fast_forward = current_time - objective_time
-    whole_time = 0
-    start_index = 0
-    start_time = 0
-    if fast_forward >= 0:
+    while True:
+        playlist = program.run(date=datetime.date.today())
+        if args.dry_run:
+            exit()
+        def get_fast_forward():
+            current_time = time.time()
+            current_struct = time.localtime(current_time)
+            objective_time = time.mktime((
+                current_struct.tm_year,
+                current_struct.tm_mon,
+                current_struct.tm_mday,
+                start_hour,0,0,
+                current_struct.tm_wday,
+                current_struct.tm_yday,
+                current_struct.tm_isdst
+            ))
+            return current_time - objective_time
+        fast_forward = get_fast_forward()
+        while fast_forward < 0:
+            print('Waiting for program start...')
+            off_air(off_air_playlist)
+            fast_forward = get_fast_forward()
+        whole_time = 0
+        start_index = 0
+        start_time = 0
         for item in playlist:
             duration = times_db[item]
             if whole_time + duration > fast_forward:
@@ -512,10 +520,3 @@ if __name__ == '__main__':
             start_time = fast_forward - whole_time
             play([playlist[start_index]],marquee,start_time)
             play(playlist[start_index+1:],marquee)
-
-    #main loop
-    while True:
-        bg_index = 0
-        while time.localtime().tm_hour != start_hour:
-            off_air(off_air_playlist)
-        play(program.run(date=datetime.date.today()),marquee)
