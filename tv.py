@@ -79,7 +79,7 @@ class ShuffledPool:
 
 
 class RandomPool:
-    def __init__(self,path,seed,memory):
+    def __init__(self,path,seed,memory,history=None):
         self._videos = []
         if os.path.isdir(path):
             for root, dirs, files in os.walk(path):
@@ -92,19 +92,23 @@ class RandomPool:
         self._random = random.Random(seed)
         self._memory = memory
         self._index = self._random.randrange(len(self._videos))
-        self._history = [self._index]
+        if history is None:
+            history = []
+        self._history = history
 
     def get(self):
+        if self._videos[self._index] in self._history:
+            self.advance()
         return self._videos[self._index]
 
     def advance(self):
         while True:
             self._index = self._random.randrange(len(self._videos))
-            if self._index not in self._history:
+            if self._videos[self._index] not in self._history:
                 break
-        self._history.append(self._index)
+        self._history.append(self._videos[self._index])
         if len(self._history) > self._memory:
-            self._history = self._history[1:]
+            self._history.pop(0)
 
     def reject(self):
         self._history.pop()
@@ -132,6 +136,7 @@ class Program:
     def __init__(self, file, times):
         self._times = times
         self._pools = {}
+        self._histories = {}
         defs = {}
         params = {
             'start_day':'2021-04-05',
@@ -164,6 +169,7 @@ class Program:
                         parser.add_argument('--shuffled',action='store_const',const='shuffled',dest='pool_type')
                         parser.add_argument('--randomized',action='store_const',const='randomized',dest='pool_type')
                         parser.add_argument('--memory',type=int,default=5)
+                        parser.add_argument('--shared-history')
                         parser.add_argument('--seed')
                         parser.add_argument('--offset',type=int,default=0)
                         pargs = parser.parse_args(tokens[1:])
@@ -172,11 +178,21 @@ class Program:
                         path = os.path.join(videos_path,sub_path)
 
                         if pargs.pool_type == 'randomized':
-                            self._pools[pargs.file] = RandomPool(
-                                path,
-                                seed,
-                                pargs.memory
-                            )
+                            if pargs.shared_history:
+                                if pargs.shared_history not in self._histories:
+                                    self._histories[pargs.shared_history] = []
+                                self._pools[pargs.file] = RandomPool(
+                                    path,
+                                    seed,
+                                    pargs.memory,
+                                    self._histories[pargs.shared_history]
+                                )
+                            else:
+                                self._pools[pargs.file] = RandomPool(
+                                    path,
+                                    seed,
+                                    pargs.memory
+                                )
                         elif pargs.pool_type == 'shuffled':
                             self._pools[pargs.file] = ShuffledPool(
                                 path,
@@ -246,6 +262,7 @@ class Program:
                 parser.add_argument('--suppress','-q',action='store_true'),
                 parser.add_argument('--min',type=int,default=1)
                 parser.add_argument('--max',type=int,default=None)
+                parser.add_argument('--verbose','-v',action='store_true')
                 pargs = parser.parse_args(args)
                 repeat = 1
                 if pargs.file not in pools:
@@ -254,7 +271,7 @@ class Program:
                     self._pools[pargs.file] = SequentialPool(os.path.join(videos_path,path))
                 pool = self._pools[pargs.file]
                 if pargs.until:
-                    if verbose or not pargs.suppress:
+                    if not pargs.verbose and (verbose or not pargs.suppress):
                         t = wall_time(state.current_time + self.params['start_hour']*60*60)
                         p = pargs.file
                         epg.append({
@@ -284,7 +301,21 @@ class Program:
                         video_time = self._times.get(video,image_duration)
                         if count >= pargs.min and state.current_time + video_time > target:
                             break
-                        if verbose:
+                        if pargs.verbose:
+                            t = wall_time(state.current_time + self.params['start_hour']*60*60)
+                            p = os.path.relpath(video,videos_path)
+                            print(
+                                '{} {:<72}'.format(
+                                    t,
+                                    p[:72]
+                                )
+                            )
+                            epg.append({
+                                'time':state.current_time + self.params['start_hour']*60*60,
+                                'path':os.path.split(p)[-2],
+                                'file': os.path.splitext(os.path.split(p)[-1])[0]
+                            })
+                        elif verbose:
                             print('  {}'.format(video))
                         pool.advance()
                         play(video)
