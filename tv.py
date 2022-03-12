@@ -111,7 +111,8 @@ class RandomPool:
             self._history.pop(0)
 
     def reject(self):
-        self._history.pop()
+        if self._videos[self._index] in self._history:
+            self._history.remove(self._videos[self._index])
         return self.advance()
 
 
