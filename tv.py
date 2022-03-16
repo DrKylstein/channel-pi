@@ -373,38 +373,8 @@ class Program:
 
         return playlist
 
-vlc_args = [
-    'cvlc',
-    '--play-and-exit',
-    '--no-video-title-show',
-    '--audio-replay-gain-mode','track',
-    #'--audio-filter', 'normvol',
-    #'--norm-max-level','2.0',
-    #'--norm-buff-size','10',
-    '--audio-filter', 'compressor',
-    '--compressor-rms-peak=0.0',
-    '--compressor-attack=50.0',
-    '--compressor-threshold=-30.0',
-    '--compressor-ratio=20.0',
-    '--compressor-knee=1.0',
-    '--compressor-makeup-gain=18.0',
-    '--image-duration={}'.format(image_duration)
-]
-
-def play(playlist,marquee,start_time=None):
-    args = vlc_args + [
-        '--sub-source='+marquee,
-    ]
-    if start_time is not None:
-        args += ['--start-time',str(start_time)]
-    subprocess.run(args+playlist)
-
-def off_air(playlist):
-    subprocess.run(vlc_args + [
-        '--sub-source=marq{marquee=%I:%M%p,size=32,color=0xffffff,position=8,x=20,y=20}',
-    ] + playlist)
-
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--program','-i', default='./program.tv')
     parser.add_argument('--sources','-s', default='./Videos')
@@ -414,7 +384,42 @@ if __name__ == '__main__':
     parser.add_argument('--no-wait', action='store_true')
     parser.add_argument('--date')
     parser.add_argument('--epg')
+    parser.add_argument('--show-titles', action='store_true')
     args = parser.parse_args()
+
+    vlc_args = [
+        'cvlc',
+        '--play-and-exit',
+        '--video-title-show' if args.show_titles else '--no-video-title-show',
+        '--audio-replay-gain-mode','track',
+        #'--audio-filter', 'normvol',
+        #'--norm-max-level','2.0',
+        #'--norm-buff-size','10',
+        '--audio-filter', 'compressor',
+        '--compressor-rms-peak=0.0',
+        '--compressor-attack=50.0',
+        '--compressor-threshold=-30.0',
+        '--compressor-ratio=20.0',
+        '--compressor-knee=1.0',
+        '--compressor-makeup-gain=18.0',
+        '--image-duration={}'.format(image_duration)
+    ]
+
+    print(vlc_args)
+
+    def play(playlist,marquee,start_time=None):
+        args = vlc_args + [
+            '--sub-source='+marquee,
+        ]
+        if start_time is not None:
+            args += ['--start-time',str(start_time)]
+        subprocess.run(args+playlist)
+
+    def off_air(playlist):
+        subprocess.run(vlc_args + [
+            '--sub-source=marq{marquee=%I:%M%p,size=32,color=0xffffff,position=8,x=20,y=20}',
+        ] + playlist)
+
 
     videos_path = args.sources
     program_path = args.program
