@@ -486,8 +486,13 @@ if __name__ == '__main__':
                     else:
                         f.write('<tr><th>{}</th><td>{}<br><br></td></tr>'.format(time,item['path'].split('#')[0]))
             f.write('</table></body></html>')
+    last_day = None
     while True:
-        playlist = program.run(date=datetime.date.today())
+        while last_day == datetime.date.today():
+            print('Waiting for next day...')
+            off_air(off_air_playlist)
+        last_day = datetime.date.today()
+        playlist = program.run(date=last_day)
         if args.dry_run:
             exit()
         def get_fast_forward():
