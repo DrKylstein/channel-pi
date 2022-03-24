@@ -522,7 +522,7 @@ if __name__ == '__main__':
         start_index = 0
         start_time = 0
         for item in playlist:
-            duration = times_db[item]
+            duration = times_db.get(item,image_duration)
             if whole_time + duration > fast_forward:
                 break
             whole_time += duration
