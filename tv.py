@@ -284,8 +284,12 @@ class Program:
                         target_amount = int(pargs.until[1:])
                         current_minutes = state.current_time//60
                         target = (current_minutes - (current_minutes % target_amount) + target_amount)*60
-                        if target - state.current_time <= pargs.ignore*60:
-                            target += target_amount*60
+                        if pargs.ignore == 0:
+                            if current_minutes % target_amount <= 0:
+                                target = state.current_time
+                        else:
+                            if target - state.current_time <= pargs.ignore*60:
+                                target += target_amount*60
                     else:
                         target_amount = float(pargs.until) - self.params['start_hour']
                         current_hours = state.current_time//(60*60)
