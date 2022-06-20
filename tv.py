@@ -16,6 +16,13 @@ import re
 allowed_extensions = ('.mp4','.mkv','.avi')
 image_duration = 10
 
+def parse_time(str):
+    parts = str.split(':')
+    minutes = int(parts[0])*60
+    if len(parts) > 0:
+        minutes += int(parts[1])
+    return minutes
+
 def wall_time(d):
     return '{:>02.0f}:{:>02.0f}'.format(
         (d//(60*60))%24,
@@ -116,7 +123,7 @@ class RandomPool:
         return self.advance()
 
 
-def wrongMonth(video,month):
+def wrongMonth(video,month,hour):
     if month is None:
         return False
     if '(halloween)' in video and month != 10:
@@ -125,6 +132,9 @@ def wrongMonth(video,month):
         return True
     if '(xmas)' in video and month != 12:
         return True
+    if '[explicit]' in video:
+        if 6 < hour < 21:
+            return True
     return False
 
 
@@ -208,40 +218,11 @@ class Program:
                         params[tokens[0]] = tokens[1:]
                     else:
                         params[tokens[0]] = tokens[1]
-        weekdays = [
-            '__monday__',
-            '__tuesday__',
-            '__wednesday__',
-            '__thursday__',
-            '__friday__'
-        ]
-        weekends = [
-            '__saturday__',
-            '__sunday__'
-        ]
-        for day in weekdays:
-            if day not in defs:
-                defs[day] = defs['__weekday__'] if '__weekday__' in defs else defs['__every_day__']
-        for day in weekends:
-            if day not in defs:
-                defs[day] = defs['__weekend__'] if '__weekend__' in defs else defs['__every_day__']
-
         self.defs = defs
         self.params = params
 
     def run(self,date=None,entrypoint=None,verbose=False,epg=[]):
-        wdays = [
-            '__monday__',
-            '__tuesday__',
-            '__wednesday__',
-            '__thursday__',
-            '__friday__',
-            '__saturday__',
-            '__sunday__'
-        ]
         pools = self._pools
-        if date is not None:
-            print(wdays[date.weekday()])
         class ProgramState:
             def __init__(self):
                 self.current_time = 0
@@ -259,6 +240,7 @@ class Program:
                 parser.add_argument('file')
                 parser.add_argument('--repeat',default=1,nargs='?',type=int)
                 parser.add_argument('--until')
+                parser.add_argument('--align')
                 parser.add_argument('--ignore',default=0,type=float)
                 parser.add_argument('--suppress','-q',action='store_true'),
                 parser.add_argument('--min',type=int,default=1)
@@ -271,7 +253,7 @@ class Program:
                     path = pargs.file.split('#')[0]
                     self._pools[pargs.file] = SequentialPool(os.path.join(videos_path,path))
                 pool = self._pools[pargs.file]
-                if pargs.until:
+                if pargs.until or pargs.align:
                     if not pargs.verbose and (verbose or not pargs.suppress):
                         t = wall_time(state.current_time + self.params['start_hour']*60*60)
                         p = pargs.file
@@ -280,10 +262,20 @@ class Program:
                             'path':p
                         })
                         print('{} '.format(t),end='')
-                    if pargs.until.startswith(':'):
-                        target_amount = int(pargs.until[1:])
+                    if pargs.align:
+                        until_pieces = re.split(r'([+-])',pargs.align)
+                        target_amount = parse_time(until_pieces[0])
+                        target_offset = 0
+                        if len(until_pieces) >= 3:
+                            target_offset = parse_time(until_pieces[2])
+                            if until_pieces[1] == '-':
+                                target_offset *= -1
+                            #print(target_offset)
                         current_minutes = state.current_time//60
-                        target = (current_minutes - (current_minutes % target_amount) + target_amount)*60
+                        adjusted_current_minutes = current_minutes + self.params['start_hour']*60 + target_offset
+                        block_start = current_minutes - (adjusted_current_minutes % target_amount)
+                        target = (block_start + target_amount)*60
+                        #print(current_minutes,adjusted_current_minutes,block_start,target//60)
                         if pargs.ignore == 0:
                             if current_minutes % target_amount <= 0:
                                 target = state.current_time
@@ -291,16 +283,14 @@ class Program:
                             if target - state.current_time <= pargs.ignore*60:
                                 target += target_amount*60
                     else:
-                        target_amount = float(pargs.until) - self.params['start_hour']
-                        current_hours = state.current_time//(60*60)
-                        target = (current_hours - (current_hours % 24) + target_amount)*(60*60)
+                        target = (parse_time(pargs.until) - self.params['start_hour']*60)*60
                     count = 0
                     while True:
                         if pargs.max is not None and count >= pargs.max:
                             break
                         video = pool.get()
                         if date is not None:
-                            while wrongMonth(video,date.month):
+                            while wrongMonth(video,date.month,state.current_time/(60*60) + self.params['start_hour']):
                                 pool.reject()
                                 video = pool.get()
                         video_time = self._times.get(video,image_duration)
@@ -321,7 +311,7 @@ class Program:
                                 'file': os.path.splitext(os.path.split(p)[-1])[0]
                             })
                         elif verbose:
-                            print('  {}'.format(video))
+                            print('  {}'.format(os.path.relpath(video,videos_path)))
                         pool.advance()
                         play(video)
                         count += 1
@@ -331,7 +321,7 @@ class Program:
                     for i in range(pargs.repeat):
                         video = pool.get()
                         if date is not None:
-                            while wrongMonth(video,date.month):
+                            while wrongMonth(video,date.month,state.current_time/(60*60) + self.params['start_hour']):
                                 pool.reject()
                                 video = pool.get()
                         pool.advance()
@@ -362,10 +352,25 @@ class Program:
                             replaced_tokens.append(sub_token)
                     primitive(replaced_tokens,playlist,state)
 
-
+        wdays = [
+            '__monday__',
+            '__tuesday__',
+            '__wednesday__',
+            '__thursday__',
+            '__friday__',
+            '__saturday__',
+            '__sunday__'
+        ]
         if entrypoint is None:
-            entrypoint = wdays[date.weekday()]
-
+            date_key = '__{}/{}__'.format(date.month,date.day)
+            weekday_key = wdays[date.weekday()]
+            if date_key in self.defs:
+                entrypoint = date_key
+            elif weekday_key in self.defs:
+                entrypoint = weekday_key
+            else:
+                entrypoint = '__every_day__'
+            print('{} {}'.format(date, entrypoint))
         playlist = []
         state = ProgramState()
         for item in self.defs[entrypoint]:
